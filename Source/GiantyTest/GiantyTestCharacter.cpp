@@ -10,6 +10,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -50,6 +51,7 @@ AGiantyTestCharacter::AGiantyTestCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
@@ -67,10 +69,123 @@ void AGiantyTestCharacter::BeginPlay()
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
+
+	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &AGiantyTestCharacter::OnHit);
+
+	GetCapsuleComponent()->OnComponentBeginOverlap.AddDynamic(this, &AGiantyTestCharacter::OnOverLapBegin);
+	GetCapsuleComponent()->OnComponentEndOverlap.AddDynamic(this, &AGiantyTestCharacter::OnOverLapEnd);
+
 }
 
-//////////////////////////////////////////////////////////////////////////
-// Input
+void AGiantyTestCharacter::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+
+	FVector currentLoc = GetActorLocation();
+	FVector newLoc = (150 * GetActorForwardVector()) + currentLoc;
+
+	FHitResult* hitresult = new FHitResult();
+	if (!OnAction) {
+		OnAction = true;
+
+		//TargetActor = OtherActor;
+		
+		//OtherActor->SetActorLocation(newLoc, false, hitresult, ETeleportType::ResetPhysics);
+
+		FTimerHandle tHandle;
+		GetWorld()->GetTimerManager().SetTimer(tHandle, [this]() {
+			OnAction = false;
+			},
+			1.5f,
+			false,
+			0.5f
+		);
+
+	}
+
+
+}
+
+void AGiantyTestCharacter::OnOverLapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	//FString targetName = OtherActor->GetName();
+	//FString Info = FString("OverLap : ") + targetName;
+	//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, Info, true);
+
+	TargetActor = OtherActor;
+	CanAction = true;
+}
+
+void AGiantyTestCharacter::OnOverLapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, TEXT("Out.."), true);
+	CanAction = false;
+}
+
+void AGiantyTestCharacter::LineTrace()
+{
+
+	if (!CanAction) return;
+
+	FHitResult hitLine;
+
+	TArray<AActor*> IgroreActor = TArray<AActor*>();
+
+	CameraBoom->K2_GetComponentToWorld().GetLocation();
+
+	FVector StartVec = GetActorLocation();//GetMesh()->GetSocketLocation(TEXT("head"));
+
+	//Trace List Vector 30 Degree
+	TArray<FVector> lineTrace = { FVector( 0,-300,0) , FVector::ZeroVector , FVector(0,300,0) };
+
+	bool canAct = false;
+
+	for (int i = 0; i < 3; ++i) {
+
+		FVector EndVec = GetActorForwardVector() * 1000;
+
+		bool isHit = UKismetSystemLibrary::LineTraceSingle(
+			GetWorld(),
+			StartVec,
+			(StartVec - lineTrace[i]) +  EndVec ,
+			UEngineTypes::ConvertToTraceType(ECC_Visibility),
+			true,
+			IgroreActor, EDrawDebugTrace::None,
+			hitLine, true, FLinearColor::Red,
+			FLinearColor::Green,
+			10.f
+		);
+
+		if (isHit) {
+			TArray<FHitResult> Hits;
+			FString hitInfo = FString("Hit : ") + EndVec.ToString();
+
+			if (hitLine.Component->ComponentHasTag("Enemy")) {
+				//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, hitInfo, true);
+				canAct = true; 
+				break;
+			}
+		}
+
+	}
+
+	if (canAct) {
+		canMove = false;
+		UAnimInstance* AnimIns = GetMesh()->GetAnimInstance();
+
+		UAnimMontage* montage = AnimIns->PlaySlotAnimationAsDynamicMontage(AnimAction, TEXT("DefaultSlot"), .25f, .25f, 1.5f, 1, -1.f, 0);
+
+		FTimerHandle tHandle;
+		GetWorld()->GetTimerManager().SetTimer(tHandle, [this]() {
+			canMove = true;
+			},
+			1.5f,
+			false,
+			montage->GetPlayLength() - 2.f
+		);
+
+	}
+
+}
 
 void AGiantyTestCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -86,6 +201,10 @@ void AGiantyTestCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AGiantyTestCharacter::Look);
+
+		// Attack Action
+		EnhancedInputComponent->BindAction(iAction, ETriggerEvent::Started, this, &AGiantyTestCharacter::Attack);
+
 	}
 	else
 	{
@@ -101,6 +220,7 @@ void AGiantyTestCharacter::Move(const FInputActionValue& Value)
 	if (Controller != nullptr)
 	{
 		// find out which way is forward
+		if (!canMove) return;
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
 
@@ -126,5 +246,19 @@ void AGiantyTestCharacter::Look(const FInputActionValue& Value)
 		// add yaw and pitch input to controller
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
+	}
+}
+
+void AGiantyTestCharacter::Attack(const FInputActionValue& Value)
+{
+	bool isAttack = Value.Get<bool>();
+
+	if (Controller != nullptr)
+	{
+
+		if (TargetActor == nullptr) return;
+
+		LineTrace();
+
 	}
 }
