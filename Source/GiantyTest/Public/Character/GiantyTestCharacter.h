@@ -54,6 +54,7 @@ class AGiantyTestCharacter : public ACharacter
 public:
 	AGiantyTestCharacter();
 	
+	bool lockscreen = true;
 
 protected:
 
@@ -69,6 +70,7 @@ protected:
 	bool canMove = true;
 	bool OnAction = false;
 	bool CanAction = false;
+	
 
 	ATestController* iController;
 

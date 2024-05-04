@@ -36,5 +36,6 @@ void ATestController::BeginPlay()
 	CurrentWG = CreateWidget(GetWorld(), PlayStatus);
 	if (CurrentWG) {
 		CurrentWG->AddToViewport();
+		bShowMouseCursor = true;
 	}
 }

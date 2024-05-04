@@ -12,6 +12,7 @@
 #include "InputActionValue.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include <TestController.h>
+#include "Widget/WGDemo.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -78,6 +79,7 @@ void AGiantyTestCharacter::BeginPlay()
 
 	APlayerController* pControl = GetWorld()->GetFirstPlayerController();
 	iController = Cast<ATestController>(pControl);
+
 }
 
 void AGiantyTestCharacter::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
@@ -231,6 +233,8 @@ void AGiantyTestCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 void AGiantyTestCharacter::Move(const FInputActionValue& Value)
 {
+	if (lockscreen) return;
+
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
@@ -255,6 +259,7 @@ void AGiantyTestCharacter::Move(const FInputActionValue& Value)
 
 void AGiantyTestCharacter::Look(const FInputActionValue& Value)
 {
+	if (lockscreen) return;
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
