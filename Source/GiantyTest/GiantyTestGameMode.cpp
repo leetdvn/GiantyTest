@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GiantyTestGameMode.h"
-#include "GiantyTestCharacter.h"
+#include "Character/GiantyTestCharacter.h"
 #include "UObject/ConstructorHelpers.h"
 
 AGiantyTestGameMode::AGiantyTestGameMode()
